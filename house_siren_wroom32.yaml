@@ -46,6 +46,11 @@ light:
     output: led_output
     id: status_led_blue
     name: "Siren Unit Status LED"
+    effects:
+      - pulse:
+          name: "Alarm Pulse"
+          transition_length: 0.5s
+          update_interval: 0.5s
 
 # ─────────────────────────────────────────
 # RELAY — GPIO13
@@ -61,11 +66,12 @@ switch:
       then:
         - light.turn_on:
             id: status_led_blue
-            effect: pulse
+            effect: "Alarm Pulse"
         - logger.log: "SIREN ACTIVATED"
     on_turn_off:
       then:
-        - light.turn_on: status_led_blue
+        - light.turn_off: status_led_blue
+        - light.turn_on: status_led_blue # Back to solid on when cleared
         - logger.log: "Siren deactivated"
 
   - platform: template
