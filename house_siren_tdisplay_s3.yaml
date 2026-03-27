@@ -1,66 +1,26 @@
 # ═══════════════════════════════════════════════════════════════════
-# PNWC HOUSE SIREN UNIT
-# Hardware: LILYGO T-Display S3 + 5V Relay Module + 12V DC Siren
-#           + Hardwired Wall Kill Button on GPIO13
-# Mains powered via USB power block — no battery/deep sleep
-#
-# WIRING SUMMARY
-# ──────────────────────────────────────────────────────────────────
-# RELAY:
-#   ESP32 5V/VBUS  → Relay VCC
-#   ESP32 GND      → Relay GND
-#   GPIO12         → Relay IN
-#   12V PSU (+)    → Relay COM (center terminal)
-#   Relay NO       → Siren (+)
-#   12V PSU (-)    → Siren (-) direct
-#
-# WALL KILL BUTTON:
-#   GPIO13         → One leg of momentary button
-#   GND            → Other leg of momentary button
-#   (Internal pullup enabled — no resistor needed)
-#   Use doorbell wire to extend button to wall location
-#
-# BUTTON BEHAVIOR DIFFERENCE:
-#   GPIO0  (Top)    → Arm/Disarm toggle only
-#   GPIO14 (Bottom) → Kills siren only, stays armed
-#   GPIO13 (Wall)   → Kills siren AND fully disarms
+# PNWC HOUSE SIREN UNIT (HEADLESS WROOM-32 VERSION)
+# Hardware: ESP32-WROOM-32 DevKit + 5V Relay Module + 12V DC Siren
+#           + Hardwired Wall Kill Button on GPIO14
 # ═══════════════════════════════════════════════════════════════════
 
 esphome:
   name: house-siren
   friendly_name: House Siren Unit
-  platformio_options:
-    board_build.flash_mode: dio
   on_boot:
     priority: 600
     then:
-      - light.turn_on:
-          id: backlight
-          brightness: 80%
-      - script.execute: update_display
+      - light.turn_on: status_led_blue
 
 esp32:
-  board: esp32-s3-devkitc-1
-  variant: esp32s3
+  board: esp32dev
   framework:
-    type: esp-idf
-    sdkconfig_options:
-      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
-
-psram:
-  mode: octal
-  speed: 80MHz
+    type: arduino # Arduino is usually more stable for basic WROOM tasks
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
-  on_connected:
-    then:
-      - script.execute: update_display
-  on_disconnected:
-    then:
-      - script.execute: update_display
 
 logger:
   level: INFO
@@ -74,103 +34,38 @@ ota:
     password: !secret ota_password
 
 # ─────────────────────────────────────────
-# SPI — ST7789 Display (T-Display S3 1.9")
+# STATUS LED (Built-in Blue LED on GPIO2)
 # ─────────────────────────────────────────
-spi:
-  clk_pin: GPIO18
-  mosi_pin: GPIO17
+output:
+  - platform: ledc
+    pin: GPIO2
+    id: led_output
 
-display:
-  - platform: ili9xxx
-    model: ST7789V
-    id: tft_display
-    cs_pin: GPIO6
-    dc_pin: GPIO7
-    reset_pin: GPIO5
-    rotation: 90
-    invert_colors: true   # Required for T-Display S3 ST7789V panel — without this colors render inverted
-    update_interval: never
-    lambda: |-
-      it.fill(Color(0, 0, 0));
-
-      // ── Title bar ──
-      it.filled_rectangle(0, 0, 320, 30, Color(60, 20, 20));
-      it.print(10, 7, id(font_medium), Color(255, 120, 120), "PNWC HOUSE SIREN");
-
-      // ── WiFi indicator dot ──
-      if (id(wifi_connected).state) {
-        it.filled_circle(305, 15, 7, Color(0, 220, 0));
-      } else {
-        it.filled_circle(305, 15, 7, Color(220, 50, 50));
-      }
-
-      // ── Siren state ──
-      it.print(10, 42, id(font_small), Color(140, 140, 140), "SIREN");
-      if (id(siren_relay).state) {
-        it.filled_rectangle(100, 38, 210, 28, Color(200, 0, 0));
-        it.print(115, 44, id(font_large), Color(255, 255, 255), "ACTIVE - ALARMING");
-      } else {
-        it.filled_rectangle(100, 38, 100, 28, Color(20, 100, 20));
-        it.print(120, 44, id(font_medium), Color(255, 255, 255), "STANDBY");
-      }
-
-      // ── Arm state ──
-      it.print(10, 82, id(font_small), Color(140, 140, 140), "ARM STATE");
-      if (id(alarm_armed).state) {
-        it.filled_rectangle(130, 78, 80, 24, Color(200, 100, 0));
-        it.print(145, 83, id(font_small), Color(255, 255, 255), "ARMED");
-      } else {
-        it.filled_rectangle(130, 78, 110, 24, Color(40, 40, 40));
-        it.print(140, 83, id(font_small), Color(180, 180, 180), "DISARMED");
-      }
-
-      // ── Last trigger source ──
-      it.print(10, 116, id(font_small), Color(140, 140, 140), "TRIGGER");
-      it.printf(130, 116, id(font_small), Color(255, 200, 50), "%s",
-        id(last_trigger).state.c_str());
-
-      // ── Uptime ──
-      it.print(10, 146, id(font_small), Color(140, 140, 140), "UPTIME");
-      it.printf(130, 146, id(font_small), Color(100, 200, 255), "%.0f min",
-        id(device_uptime).state / 60.0f);
-
-      // ── Divider ──
-      it.horizontal_line(0, 174, 320, Color(80, 40, 40));
-
-      // ── Status banner ──
-      if (id(siren_relay).state) {
-        it.filled_rectangle(0, 178, 320, 32, Color(200, 0, 0));
-        it.print(80, 184, id(font_large), Color(255, 255, 255), "!! ALARM ACTIVE !!");
-      } else if (id(alarm_armed).state) {
-        it.filled_rectangle(0, 178, 320, 32, Color(160, 80, 0));
-        it.print(90, 184, id(font_large), Color(255, 255, 255), "ARMED & WATCHING");
-      } else {
-        it.filled_rectangle(0, 178, 320, 32, Color(20, 20, 20));
-        it.print(110, 184, id(font_large), Color(100, 100, 100), "SYSTEM IDLE");
-      }
-
-      // ── Button legend strip ──
-      it.filled_rectangle(0, 212, 320, 18, Color(15, 15, 15));
-      it.print(5,   215, id(font_tiny), Color(80, 80, 80), "TOP:ARM/DISARM");
-      it.print(115, 215, id(font_tiny), Color(80, 80, 80), "BOT:SIREN KILL");
-      it.print(225, 215, id(font_tiny), Color(80, 80, 80), "WALL:KILL+DISARM");
+light:
+  - platform: monochromatic
+    output: led_output
+    id: status_led_blue
+    name: "Siren Unit Status LED"
 
 # ─────────────────────────────────────────
-# RELAY — GPIO12
+# RELAY — GPIO13
+# Wiring: ESP32 5V/VIN -> Relay VCC | ESP32 GND -> Relay GND | GPIO13 -> Relay IN
 # ─────────────────────────────────────────
 switch:
   - platform: gpio
-    pin: GPIO12
+    pin: GPIO13
     id: siren_relay
     name: "Siren Relay"
     restore_mode: ALWAYS_OFF
     on_turn_on:
       then:
-        - script.execute: update_display
+        - light.turn_on:
+            id: status_led_blue
+            effect: pulse
         - logger.log: "SIREN ACTIVATED"
     on_turn_off:
       then:
-        - script.execute: update_display
+        - light.turn_on: status_led_blue
         - logger.log: "Siren deactivated"
 
   - platform: template
@@ -178,109 +73,25 @@ switch:
     id: alarm_armed_switch
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
-    on_turn_on:
-      then:
-        - script.execute: update_display
     on_turn_off:
       then:
         - switch.turn_off: siren_relay
-        - script.execute: update_display
 
 # ─────────────────────────────────────────
-# BACKLIGHT — GPIO38 (T-Display S3)
-# ─────────────────────────────────────────
-output:
-  - platform: ledc
-    pin: GPIO38
-    id: backlight_output
-
-light:
-  - platform: monochromatic
-    output: backlight_output
-    id: backlight
-    name: "Siren Display Backlight"
-    default_transition_length: 0s
-    restore_mode: ALWAYS_ON
-
-# ─────────────────────────────────────────
-# FONTS
-# ─────────────────────────────────────────
-font:
-  - file: "gfonts://Roboto"
-    id: font_tiny
-    size: 11
-  - file: "gfonts://Roboto"
-    id: font_small
-    size: 14
-  - file: "gfonts://Roboto"
-    id: font_medium
-    size: 16
-  - file: "gfonts://Roboto"
-    id: font_large
-    size: 18
-
-# ─────────────────────────────────────────
-# BINARY SENSORS
+# BINARY SENSORS (Buttons)
 # ─────────────────────────────────────────
 binary_sensor:
   - platform: status
     name: "Siren Unit WiFi Connected"
     id: wifi_connected
-    on_state_change:
-      then:
-        - script.execute: update_display
 
-  # ── Top button — Arm/Disarm toggle ──────────────────────────────
-  - platform: gpio
-    pin:
-      number: GPIO0
-      inverted: true
-      mode:
-        input: true
-        pullup: true
-    name: "Button Arm Toggle"
-    id: btn_top
-    filters:
-      - delayed_on: 50ms
-    on_press:
-      then:
-        - switch.toggle: alarm_armed_switch
-        - script.execute: update_display
-
-  # ── Bottom button — Local siren kill ONLY (stays armed) ─────────
-  # Use this if you want to silence the noise but keep monitoring
+  # ── Wall kill button — GPIO14 — Kills siren AND disarms ─────────
+  # Wiring: GPIO14 → momentary button → GND
   - platform: gpio
     pin:
       number: GPIO14
       inverted: true
-      mode:
-        input: true
-        pullup: true
-    name: "Button Local Kill"
-    id: btn_bottom
-    filters:
-      - delayed_on: 50ms
-    on_press:
-      then:
-        - switch.turn_off: siren_relay
-        - text_sensor.template.publish:
-            id: last_trigger
-            state: "Local Button Kill"
-        - script.execute: update_display
-        - logger.log: "Siren killed via local button — still armed"
-
-  # ── Wall kill button — GPIO13 — Kills siren AND disarms ─────────
-  # Wiring: GPIO13 → momentary button → GND
-  # Run doorbell wire from this board to a single-gang box
-  # anywhere in the house (bedroom, hallway, garage entry)
-  # No resistor needed — internal pullup handles it
-  - platform: gpio
-    pin:
-      number: GPIO13
-      inverted: true
-      mode:
-        input: true
-        pullup: true
+      mode: INPUT_PULLUP
     name: "Wall Kill Button"
     id: btn_wall_kill
     filters:
@@ -292,34 +103,21 @@ binary_sensor:
         - text_sensor.template.publish:
             id: last_trigger
             state: "Wall Button Kill"
-        - script.execute: update_display
         - logger.log: "Alarm killed and disarmed via wall button"
 
-  # ── Arm state exposed as binary sensor for HA automations ───────
-  - platform: template
-    name: "Alarm Armed State"
-    id: alarm_armed
-    lambda: "return id(alarm_armed_switch).state;"
-
 # ─────────────────────────────────────────
-# SENSORS
+# SENSORS & TEXT
 # ─────────────────────────────────────────
 sensor:
   - platform: uptime
     name: "Siren Unit Uptime"
     id: device_uptime
     update_interval: 60s
-    on_value:
-      then:
-        - script.execute: update_display
 
   - platform: wifi_signal
     name: "Siren Unit WiFi RSSI"
     update_interval: 60s
 
-# ─────────────────────────────────────────
-# TEXT SENSORS
-# ─────────────────────────────────────────
 text_sensor:
   - platform: template
     name: "Last Trigger Source"
@@ -330,13 +128,7 @@ text_sensor:
 # SCRIPTS
 # ─────────────────────────────────────────
 script:
-  - id: update_display
-    mode: single
-    then:
-      - component.update: tft_display
-
   # Called from HA automation when car sensor triggers
-  # Respects arm state, auto-shutoff after 60s if not manually killed
   - id: trigger_alarm
     mode: single
     then:
@@ -345,7 +137,6 @@ script:
             switch.is_on: alarm_armed_switch
           then:
             - switch.turn_on: siren_relay
-            - script.execute: update_display
             - delay: 60s
             - if:
                 condition:
@@ -355,4 +146,3 @@ script:
                   - text_sensor.template.publish:
                       id: last_trigger
                       state: "Auto Timeout 60s"
-                  - script.execute: update_display
