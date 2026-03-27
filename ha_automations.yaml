@@ -1,0 +1,190 @@
+# ═══════════════════════════════════════════════════════════════════
+# PNWC CAR SECURITY — HOME ASSISTANT AUTOMATIONS
+# Ties car-security ESPHome device to house-siren ESPHome device
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Helper: Arm/Disarm toggle (add via HA UI or include here) ──────
+# Settings → Devices & Services → Helpers → Create Helper → Toggle
+# Name: Car Alarm Armed
+# Entity ID: input_boolean.car_alarm_armed
+
+# ─────────────────────────────────────────
+# AUTOMATION 1: Vibration only — notification + Frigate
+# ─────────────────────────────────────────
+automation:
+  - alias: "Car Alarm - Vibration Detected"
+    id: car_alarm_vibration
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.car_security_sensor_car_vibration
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.car_alarm_armed
+        state: "on"
+    action:
+      # Push notification with camera snapshot
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Car Alarm — Vibration"
+          message: "Vehicle disturbance detected"
+          data:
+            ttl: 0
+            priority: high
+            image: /api/camera_proxy/camera.driveway  # adjust to your Frigate camera entity
+            actions:
+              - action: DISARM_CAR_ALARM
+                title: Disarm
+              - action: TRIGGER_SIREN
+                title: Trigger Siren
+      # Persistent HA notification
+      - service: notify.persistent_notification
+        data:
+          title: "Car Alarm — Vibration"
+          message: "Vibration detected at {{ now().strftime('%H:%M:%S') }}"
+      # Trigger Frigate to start recording if not already
+      - service: switch.turn_on
+        target:
+          entity_id: switch.frigate_driveway_record  # adjust to your Frigate entity
+
+# ─────────────────────────────────────────
+# AUTOMATION 2: Presence confirmed — escalate to siren
+# ─────────────────────────────────────────
+  - alias: "Car Alarm - Intruder Confirmed"
+    id: car_alarm_intruder
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.car_security_sensor_car_presence
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.car_alarm_armed
+        state: "on"
+      - condition: state
+        entity_id: binary_sensor.car_security_sensor_car_vibration
+        state: "on"
+    action:
+      # Activate siren via ESPHome service call
+      - service: esphome.house_siren_trigger_alarm
+        data: {}
+      # Set trigger label on siren display
+      - service: text_sensor.set_value
+        target:
+          entity_id: text_sensor.house_siren_last_trigger_source
+        data:
+          value: "Car Intrusion"
+      # Critical push notification
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🚨 INTRUDER — Car Alarm Active"
+          message: "Presence confirmed in vehicle. Siren triggered."
+          data:
+            ttl: 0
+            priority: high
+            image: /api/camera_proxy/camera.driveway
+            actions:
+              - action: DISARM_CAR_ALARM
+                title: Disarm + Kill Siren
+      # Flash all exterior lights
+      - service: light.turn_on
+        target:
+          entity_id: light.exterior_all  # adjust to your light group
+        data:
+          flash: long
+
+# ─────────────────────────────────────────
+# AUTOMATION 3: Mobile action — Disarm
+# ─────────────────────────────────────────
+  - alias: "Car Alarm - Mobile Disarm Action"
+    id: car_alarm_disarm_action
+    mode: single
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: DISARM_CAR_ALARM
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.car_alarm_armed
+      - service: switch.turn_off
+        target:
+          entity_id: switch.house_siren_siren_relay
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Car Alarm Disarmed"
+          message: "Alarm disarmed via mobile action"
+
+# ─────────────────────────────────────────
+# AUTOMATION 4: Mobile action — Manual siren trigger
+# ─────────────────────────────────────────
+  - alias: "Car Alarm - Mobile Siren Trigger"
+    id: car_alarm_manual_siren
+    mode: single
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: TRIGGER_SIREN
+    action:
+      - service: esphome.house_siren_trigger_alarm
+        data: {}
+
+# ─────────────────────────────────────────
+# AUTOMATION 5: Low battery warning
+# ─────────────────────────────────────────
+  - alias: "Car Sensor - Low Battery"
+    id: car_sensor_low_battery
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.car_security_sensor_car_battery_voltage
+        below: 3.5
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🔋 Car Sensor Low Battery"
+          message: >
+            Car security sensor battery at
+            {{ states('sensor.car_security_sensor_car_battery_voltage') }}V.
+            Drive to charge or swap battery.
+
+# ─────────────────────────────────────────
+# AUTOMATION 6: Auto-arm when you leave home
+# ─────────────────────────────────────────
+  - alias: "Car Alarm - Auto Arm on Departure"
+    id: car_alarm_auto_arm
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: person.your_name  # adjust to your person entity
+        to: "not_home"
+    action:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.car_alarm_armed
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Car Alarm Armed"
+          message: "Vehicle security armed automatically"
+
+# ─────────────────────────────────────────
+# AUTOMATION 7: Auto-disarm when you arrive home
+# ─────────────────────────────────────────
+  - alias: "Car Alarm - Auto Disarm on Arrival"
+    id: car_alarm_auto_disarm
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: person.your_name  # adjust to your person entity
+        to: "home"
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.car_alarm_armed
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Car Alarm Disarmed"
+          message: "Welcome home — vehicle security disarmed"
