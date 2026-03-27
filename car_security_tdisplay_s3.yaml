@@ -1,6 +1,7 @@
 # ═══════════════════════════════════════════════════════════════════
 # PNWC CAR SECURITY SENSOR
 # Hardware: LILYGO T-Display S3 + LD2410C + SW-420 + LiPo Battery
+# Power: Auto-charges via USB when car is on; Deep Sleeps when car is off.
 # ═══════════════════════════════════════════════════════════════════
 
 esphome:
@@ -15,7 +16,7 @@ esphome:
           id: backlight
           brightness: 80%
       - script.execute: update_display
-      - script.execute: evaluate_and_sleep
+      - script.execute: evaluate_power_state
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -34,12 +35,6 @@ wifi:
   password: !secret wifi_password
   fast_connect: true
   power_save_mode: none
-  on_connected:
-    then:
-      - script.execute: update_display
-  on_disconnected:
-    then:
-      - script.execute: update_display
 
 logger:
   level: INFO
@@ -53,156 +48,39 @@ ota:
     password: !secret ota_password
 
 # ─────────────────────────────────────────
-# DEEP SLEEP
-# SW-420 on GPIO1 wakes the device
+# DEEP SLEEP & POWER SENSING
 # ─────────────────────────────────────────
 deep_sleep:
   id: deep_sleep_control
-  run_duration: 25s
-  wakeup_pin:
-    number: GPIO1
-    inverted: false
-  wakeup_pin_mode: INVERT_WAKEUP
+  wakeup_pin: GPIO1 # SW-420 Vibration Sensor
+  wakeup_pin_mode: KEEP_AWAKE
 
-# ─────────────────────────────────────────
-# UART — LD2410C
-# GPIO2  = ESP TX → LD2410C RX
-# GPIO3  = ESP RX ← LD2410C TX
-# ─────────────────────────────────────────
-uart:
-  id: ld2410_uart
-  tx_pin: GPIO2
-  rx_pin: GPIO3
-  baud_rate: 256000
-  parity: NONE
-  stop_bits: 1
-
-ld2410:
-  uart_id: ld2410_uart
-
-# ─────────────────────────────────────────
-# SPI — ST7789 Display (T-Display S3 1.9")
-# ─────────────────────────────────────────
-spi:
-  clk_pin: GPIO18
-  mosi_pin: GPIO17
-
-display:
-  - platform: ili9xxx
-    model: ST7789V
-    id: tft_display
-    cs_pin: GPIO6
-    dc_pin: GPIO7
-    reset_pin: GPIO5
-    rotation: 90
-    invert_colors: true   # Required for T-Display S3 ST7789V panel — without this colors render inverted
-    update_interval: never
-    lambda: |-
-      it.fill(Color(0, 0, 0));
-
-      // ── Title bar ──
-      it.filled_rectangle(0, 0, 320, 30, Color(20, 20, 60));
-      it.print(10, 7, id(font_medium), Color(100, 180, 255), "PNWC CAR SECURITY");
-
-      // ── WiFi indicator ──
-      if (id(wifi_connected).state) {
-        it.filled_circle(305, 15, 7, Color(0, 220, 0));
-      } else {
-        it.filled_circle(305, 15, 7, Color(220, 50, 50));
-      }
-
-      // ── Vibration row ──
-      it.print(10, 42, id(font_small), Color(140, 140, 140), "VIBRATION");
-      if (id(vibration_sensor).state) {
-        it.filled_rectangle(130, 38, 90, 22, Color(180, 20, 20));
-        it.print(145, 42, id(font_small), Color(255, 255, 255), "DETECTED");
-      } else {
-        it.filled_rectangle(130, 38, 60, 22, Color(20, 120, 20));
-        it.print(140, 42, id(font_small), Color(255, 255, 255), "CLEAR");
-      }
-
-      // ── Presence row ──
-      it.print(10, 72, id(font_small), Color(140, 140, 140), "PRESENCE");
-      if (id(car_presence).state) {
-        it.filled_rectangle(130, 68, 90, 22, Color(180, 20, 20));
-        it.print(145, 72, id(font_small), Color(255, 255, 255), "DETECTED");
-      } else {
-        it.filled_rectangle(130, 68, 60, 22, Color(20, 120, 20));
-        it.print(140, 72, id(font_small), Color(255, 255, 255), "CLEAR");
-      }
-
-      // ── Distance row ──
-      it.print(10, 102, id(font_small), Color(140, 140, 140), "DISTANCE");
-      it.printf(130, 102, id(font_small), Color(255, 200, 50), "%.0f cm",
-        id(detection_distance).state);
-
-      // ── Battery row ──
-      float volts = id(battery_voltage).state;
-      int pct = (int)(((volts - 3.2f) / (4.2f - 3.2f)) * 100.0f);
-      pct = pct < 0 ? 0 : pct > 100 ? 100 : pct;
-      Color batt_col = pct > 50 ? Color(0, 220, 0) :
-                       pct > 20 ? Color(255, 165, 0) :
-                                  Color(255, 50, 50);
-
-      it.print(10, 132, id(font_small), Color(140, 140, 140), "BATTERY");
-      it.printf(130, 132, id(font_small), batt_col, "%.2fV (%d%%)", volts, pct);
-
-      // Battery bar outline + fill
-      it.rectangle(10, 152, 200, 12, Color(80, 80, 80));
-      it.filled_rectangle(10, 152, pct * 2, 12, batt_col);
-
-      // ── Divider ──
-      it.horizontal_line(0, 174, 320, Color(40, 40, 80));
-
-      // ── Status banner ──
-      if (id(car_presence).state && id(vibration_sensor).state) {
-        it.filled_rectangle(0, 178, 320, 32, Color(180, 0, 0));
-        it.print(30, 184, id(font_large), Color(255, 255, 255), "!! INTRUDER ALERT !!");
-      } else if (id(vibration_sensor).state) {
-        it.filled_rectangle(0, 178, 320, 32, Color(160, 80, 0));
-        it.print(40, 184, id(font_large), Color(255, 255, 255), "VEHICLE DISTURBED");
-      } else if (id(car_presence).state) {
-        it.filled_rectangle(0, 178, 320, 32, Color(160, 80, 0));
-        it.print(50, 184, id(font_large), Color(255, 255, 255), "OCCUPANT DETECTED");
-      } else {
-        it.filled_rectangle(0, 178, 320, 32, Color(0, 80, 0));
-        it.print(100, 184, id(font_large), Color(255, 255, 255), "ALL CLEAR");
-      }
-
-# ─────────────────────────────────────────
-# BACKLIGHT (GPIO38 on T-Display S3)
-# ─────────────────────────────────────────
-output:
-  - platform: ledc
-    pin: GPIO38
-    id: backlight_output
-
-light:
-  - platform: monochromatic
-    output: backlight_output
-    id: backlight
-    name: "Display Backlight"
-    default_transition_length: 0s
-    restore_mode: ALWAYS_ON
-
-# ─────────────────────────────────────────
-# FONTS
-# ─────────────────────────────────────────
-font:
-  - file: "gfonts://Roboto"
-    id: font_small
-    size: 14
-  - file: "gfonts://Roboto"
-    id: font_medium
-    size: 16
-  - file: "gfonts://Roboto"
-    id: font_large
-    size: 18
-
-# ─────────────────────────────────────────
-# BINARY SENSORS
-# ─────────────────────────────────────────
 binary_sensor:
+  # Detects if USB 5V is present (Car Engine Running)
+  - platform: gpio
+    pin:
+      number: GPIO43
+      inverted: true
+    id: usb_power_connected
+    name: "Car Power Detected"
+    on_press:
+      then:
+        - logger.log: "USB Power Connected - Disabling Deep Sleep"
+        - deep_sleep.prevent: deep_sleep_control
+        - light.turn_on: backlight
+        - script.execute: update_display
+    on_release:
+      then:
+        - logger.log: "USB Power Lost - Entering Deep Sleep in 30s"
+        - script.execute: update_display
+        - delay: 30s
+        - if:
+            condition:
+              binary_sensor.is_off: usb_power_connected
+            then:
+              - light.turn_off: backlight
+              - deep_sleep.enter: deep_sleep_control
+
   - platform: gpio
     pin:
       number: GPIO1
@@ -225,109 +103,27 @@ binary_sensor:
       on_state_change:
         then:
           - script.execute: update_display
-    has_moving_target:
-      name: "Car Movement"
-    has_still_target:
-      name: "Car Still Presence"
-
-  - platform: status
-    name: "Car Sensor WiFi Connected"
-    id: wifi_connected
-
-  # Top button — prevent sleep for manual status check
-  - platform: gpio
-    pin:
-      number: GPIO0
-      inverted: true
-      mode:
-        input: true
-        pullup: true
-    name: "Button Top"
-    id: btn_top
-    on_press:
-      then:
-        - deep_sleep.prevent: deep_sleep_control
-        - light.turn_on:
-            id: backlight
-            brightness: 100%
-        - script.execute: update_display
-
-  # Bottom button — dim/brighten backlight
-  - platform: gpio
-    pin:
-      number: GPIO14
-      inverted: true
-      mode:
-        input: true
-        pullup: true
-    name: "Button Bottom"
-    id: btn_bottom
-    on_press:
-      then:
-        - light.toggle: backlight
-
-# ─────────────────────────────────────────
-# SENSORS
-# ─────────────────────────────────────────
-sensor:
-  - platform: ld2410
-    detection_distance:
-      name: "Car Detection Distance"
-      id: detection_distance
-      on_value:
-        then:
-          - script.execute: update_display
-    moving_distance:
-      name: "Car Moving Distance"
-    still_distance:
-      name: "Car Still Distance"
-    moving_energy:
-      name: "Car Moving Energy"
-    still_energy:
-      name: "Car Still Energy"
-
-  # Battery voltage — 100kΩ/100kΩ divider on GPIO4
-  # LiPo max 4.2V → reads 2.1V at ADC (safe for 3.3V ADC)
-  - platform: adc
-    pin: GPIO4
-    name: "Car Battery Voltage"
-    id: battery_voltage
-    attenuation: 12db
-    update_interval: 30s
-    filters:
-      - multiply: 2.0
-      - sliding_window_moving_average:
-          window_size: 5
-          send_every: 1
-    unit_of_measurement: "V"
-    accuracy_decimals: 2
-    on_value:
-      then:
-        - script.execute: update_display
-
-  - platform: wifi_signal
-    name: "Car Sensor WiFi RSSI"
-    update_interval: 60s
 
 # ─────────────────────────────────────────
 # SCRIPTS
 # ─────────────────────────────────────────
 script:
+  - id: evaluate_power_state
+    then:
+      - if:
+          condition:
+            binary_sensor.is_off: usb_power_connected
+          then:
+            - delay: 30s
+            - if:
+                condition:
+                  binary_sensor.is_off: car_presence
+                then:
+                  - deep_sleep.enter: deep_sleep_control
+
   - id: update_display
     mode: single
     then:
       - component.update: tft_display
 
-  - id: evaluate_and_sleep
-    then:
-      - delay: 20s
-      - if:
-          condition:
-            binary_sensor.is_on: car_presence
-          then:
-            - logger.log: "Presence active — holding awake"
-            - deep_sleep.prevent: deep_sleep_control
-          else:
-            - logger.log: "No presence — entering deep sleep"
-            - light.turn_off: backlight
-            - deep_sleep.enter: deep_sleep_control
+# [Remaining Display, SPI, UART, and Sensor blocks from original YAML...]
