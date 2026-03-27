@@ -1,0 +1,15 @@
+# ESPHome private secrets
+secrets.yaml
+
+# ESPHome temporary build folders
+.esphome/
+.pio/
+.pioenvs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Python bytecode (if using custom scripts)
+__pycache__/
+*.py[cod]
