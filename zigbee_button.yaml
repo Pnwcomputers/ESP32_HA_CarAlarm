@@ -1,0 +1,31 @@
+automation:
+  - alias: "Car Alarm - Wall Button Kill"
+    id: car_alarm_wall_button_kill
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: sensor.aqara_wall_button_action  # adjust to your button entity
+        to: "single"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.house_siren_siren_relay
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.car_alarm_armed
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Car Alarm Killed"
+          message: "Alarm silenced via wall button at {{ now().strftime('%H:%M:%S') }}"
+```
+
+---
+
+### B) Hardwired Button to Siren Unit (Cleanest)
+
+Add a physical momentary button wired to **GPIO13** on the house siren T-Display S3. This keeps everything on one device with no Zigbee dependency.
+
+**Wiring:**
+```
+GPIO13 → one leg of momentary button
+GND    → other leg of momentary button
