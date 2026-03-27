@@ -18,29 +18,29 @@ A professional-grade, distributed vehicle security system. This project bridges 
 
 ## 🛒 Parts List & Shopping Links
 
-To build the **PNWC Distributed Alarm System**, you will need the following components. These links represent the specific hardware used in the verified circuit designs.
+To build your own **ESP32 -> Home Assistant, Security System**, you will need the following components. These links represent the specific hardware used in the circuit designs.
 
-### 🚗 Unit 1: Car Sensor (Mobile)
-* **Microcontroller:** [LILYGO T-Display S3](https://a.co/d/0jiQC1WG) (Dual-core ESP32-S3 with 1.9" LCD)
-* **Presence Sensor:** [LD2410C mmWave Radar](https://a.co/d/01kpnEA2) (Human presence detection)
-* **Vibration Sensor:** [SW-420 Motion Sensor](https://a.co/d/0evgHhJQ) (Shock/Vibration trigger)
-* **Battery:** [3.7V 2000mAh LiPo Battery](https://a.co/d/0hAgFQU7) (JST 1.25mm connector)
+### 🚗 Unit 1: Car Sensor (Presence & Vibration Sensor)
+* **ESP32 Microcontroller:** [LILYGO T-Display S3](https://a.co/d/0jiQC1WG) (Dual-core ESP32-S3 with 1.9" LCD)
+* **Presence Sensor:** [LD2410C mmWave Radar](https://a.co/d/06LWMXAf) (Human presence detection)
+* **Vibration Sensor:** [SW-420 Motion Sensor](https://a.co/d/02E32HKW) (Shock/Vibration trigger)
+* **LiPo Battery:** [3.7V 2000mAh LiPo Battery](https://a.co/d/02E32HKW) (JST 1.25mm connector)
 
-### 🏠 Unit 2: House Siren (Mains Powered)
-* **Microcontroller:** [ESP32-WROOM-32 DevKit](https://a.co/d/0jhFe4JW) (Standard 30-pin version)
-* **Relay:** [5V One-Channel Relay Module](https://a.co/d/02h6VCBC) (Opto-isolated High/Low trigger)
-* **Siren:** [12V DC Wired Indoor/Outdoor Siren](https://a.co/d/05QD2nTd) (High-decibel output)
-* **Kill Switch:** [Momentary Push Button Switch](https://a.co/d/04kKf5Dm) (For the "Wall Kill" extension)
-
-### ⚡ Power & Wiring
-* **Siren Power:** [12V 2A DC Power Supply Adapter](https://a.co/d/06dbN13u) (Mains to 12V for the siren)
-
----
+### 🏠 Unit 2: House Siren (Siren Wall Powered/Relay Controlled)
+* **ESP32 Microcontroller:** [ESP32-WROOM-32 DevKit](https://a.co/d/05z59KT6) (Standard 30-pin version)
+* **5V Relay:** [5V One-Channel Relay Module](https://a.co/d/0aWROudj) (Opto-isolated High/Low trigger)
+* **12V Siren:** [12V DC Wired Indoor/Outdoor Siren](https://a.co/d/06rncyCy) (High-decibel output)
+* **Siren Power:** [12V 2A DC Power Supply Adapter](https://a.co/d/0imZnCsy) (Mains to 12V for the siren)
+* * **Siren Kill Switch:** [Push Button Switch](https://a.co/d/031p9keo) (For the "Wall Kill" extension)
 
 ### 🛠️ Tooling Requirements
 * **Soldering:** Basic iron and solder for connecting sensors to pins.
-* **Wiring:** 22AWG hook-up wire or standard doorbell wire for the Wall Kill Button.
-* **Software:** Home Assistant instance with the **ESPHome** add-on installed.
+* **Wiring:** [22AWG](https://a.co/d/0aoN3zOD) wire or standard doorbell wire if/where needed.
+* **Software:** [Home Assistant](https://www.home-assistant.io/) instance with the **ESPHome** add-on installed.
+* **Zigbee Gateway:** [SONOFF Zigbee 3.0 USB Dongle](https://a.co/d/08299SBs) universal wireless Zigbee USB adapter with antenna for Home Assistant.
+* **Zigbee, Thread or Matter Gateway:** [Home Assistant Connect ZB-2](https://a.co/d/0iVhmzxv) provides the best possible connection to Zigbee or Thread devices for Home Assistant.
+
+---
 
 ## 📂 Repository Structure
 
