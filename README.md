@@ -10,24 +10,24 @@ A professional-grade, distributed vehicle security system. This project bridges 
 
 ## 🏗️ System Architecture
 
-1.  **The Sensor (Car Unit):** A LILYGO T-Display S3 equipped with an **LD2410C Human Presence Radar** and an **SW-420 Vibration Sensor**. Wakes instantly on disturbance.
-2.  **The Brain (Home Assistant):** Manages logic, arm/disarm states, and **Frigate NVR** integration.
-3.  **The Alarm (House Unit):** A second T-Display S3 controlling a **12V DC Siren** via a 5V Relay, featuring a hardwired "Wall Kill" button.
+1.  **The Sensor (Car Unit):** A LILYGO T-Display S3 with **LD2410C Human Presence Radar** and an **SW-420 Vibration Sensor**. Optimized for deep sleep, waking instantly on physical disturbance.
+2.  **The Brain (Home Assistant):** Manages global logic, time-of-day scheduling, and **Frigate NVR** camera integration.
+3.  **The Alarm (House Unit):** A second T-Display S3 controlling a **12V DC Siren** via a 5V Relay. Features a hardwired "Wall Kill" button for emergency local control.
 
 ---
 
 ## 📂 Repository Structure
 
-* `car_security_tdisplay_s3.yaml`: Sensor unit config (Vibration + Radar + Battery).
-* `house_siren_tdisplay_s3.yaml`: Siren controller with status display and wall-button logic.
+* `car_security_tdisplay_s3.yaml`: Sensor unit config (Vibration + Radar + Battery Mgmt).
+* `house_siren_tdisplay_s3.yaml`: Siren controller with status display and hardwired button logic.
 * `ha_automations.yaml`: Global logic, notifications, and camera triggers.
-* `zigbee_kill_button.yaml`: Optional Zigbee remote integration.
+* `zigbee_kill_button.yaml`: Optional automation for remote Zigbee-based silencing.
 
 ---
 
 ## 🛠️ 3D Enclosure & Mounting Designs
 
-The system requires specific mounting to ensure sensor accuracy and weather resistance. Use the blueprint below for printing and assembly.
+The system requires specific mounting to ensure sensor accuracy and weather resistance. 
 
 <p align="center">
   <img src="alarm_3d_case_designs.svg" width="800" alt="3D Enclosure Blueprints">
@@ -37,12 +37,29 @@ The system requires specific mounting to ensure sensor accuracy and weather resi
 
 | Feature | Car Sensor Unit | House Siren Unit |
 | :--- | :--- | :--- |
-| **Material** | PETG (Heat tolerant for interiors) | ASA (UV & Weather stable) |
+| **Material** | PETG (Heat tolerant for car interiors) | ASA (UV & Weather stable for outdoors) |
 | **Infill** | 25% Gyroid | 40% Gyroid |
 | **Mounting** | Under-seat rail / Hook tabs | M6 Concrete Anchors |
 | **Hardware** | M3 Heat-set inserts x 4 | M3 Heat-set / M6 Bolts |
 
-**Key Design Note:** The outdoor siren bracket includes a **15° down-tilt** to maximize audio projection toward the driveway and prevent water ingress into the horn.
+**Design Note:** The outdoor siren bracket includes a built-in **15° down-tilt** to maximize audio projection toward the driveway and prevent water ingress.
+
+---
+
+## 🤖 Advanced Features
+
+### 📅 Smart Scheduling & Routines
+* **Time-of-Day Arming:** Automatically arm via HA `schedule` helpers (e.g., 10 PM – 6 AM).
+* **Manual Override:** A 'Disable' feature for maintenance that includes an **Auto-Recovery** check every hour to ensure the system is never accidentally left off overnight.
+
+### 📡 Detection Logic
+* **mmWave Radar:** Distinguishes between environmental vibration (wind/cats) and actual human presence inside or near the cabin.
+* **Intelligent Power:** Car unit remains in deep sleep until the SW-420 triggers a hardware wake-up.
+
+### 🔘 Triple-Layer Kill Switch
+1. **Local:** Top/Bottom buttons on the House Unit display.
+2. **Hardwired:** GPIO13 "Wall Kill" button (doorbell wire extension).
+3. **Mobile:** Actionable notifications on the Home Assistant app.
 
 ---
 
@@ -51,22 +68,14 @@ The system requires specific mounting to ensure sensor accuracy and weather resi
 ### 🏠 House Siren Unit (Unit 2)
 * **Relay IN:** GPIO12
 * **Wall Kill Button:** GPIO13 ➔ GND (Internal Pullup)
-* **Status Display:** Built-in ST7789 (`invert: true` may be required for correct colors)
+* **Status Display:** Built-in ST7789 (`invert: true` enabled in YAML)
 
 ### 🚗 Car Sensor Unit (Unit 1)
 * **SW-420 (Wake):** GPIO1
 * **LD2410C TX/RX:** GPIO3 / GPIO2
-* **Battery ADC:** GPIO4 (via 100k/100k Divider)
-
----
-
-## 🤖 Advanced Features
-
-* **mmWave Detection:** Radar distinguishes between environmental vibration and actual human presence inside the cabin.
-* **Intelligent Deep Sleep:** Car unit draws minimal current until the SW-420 triggers a wake event.
-* **Manual Overrides:** Three kill levels: Local (display), Wall (hardwired), and Mobile (HA App).
+* **Battery ADC:** GPIO4 (100k/100k Voltage Divider)
 
 ---
 
 ## ⚠️ Safety Note
-The house unit is designed to switch **12V DC only**. Switching mains AC (120V/240V) with these components is dangerous and not supported by this documentation.
+The house unit switches **12V DC only**. Do not attempt to switch mains AC (120V/240V) directly with the relay modules provided in this project.
