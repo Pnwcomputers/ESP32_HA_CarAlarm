@@ -1,4 +1,4 @@
-# 🚨 ESP32 Security System — Home Assistant Distributed Alarm System (Sensor, Siren & Kill Switch)
+**# 🚨 ESP32 Security System — Home Assistant Distributed Alarm System (Sensor, Siren & Kill Switch)
 
 <p align="center">
   <img src="esp32alarm.png" width="800" alt="PNWC Car Alarm Project Collage">
@@ -79,3 +79,4 @@ The system requires specific mounting to ensure sensor accuracy and weather resi
 
 ## ⚠️ Safety Note
 The house unit switches **12V DC only**. Do not attempt to switch mains AC (120V/240V) directly with the relay modules provided in this project.
+**
