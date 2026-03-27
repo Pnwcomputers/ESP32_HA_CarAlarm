@@ -1,0 +1,54 @@
+alias: "Car Alarm - Frigate Video Notification"
+description: "Sends a 10-second video clip when presence is confirmed in the vehicle."
+id: car_alarm_frigate_video
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: binary_sensor.car_security_sensor_car_presence
+    to: "on"
+
+condition:
+  - condition: state
+    entity_id: input_boolean.car_alarm_armed
+    state: "on"
+  - condition: state
+    entity_id: binary_sensor.car_security_sensor_car_vibration
+    state: "on"
+
+action:
+  # 1. Start a 10-second recording buffer
+  - service: switch.turn_on
+    target:
+      entity_id: switch.frigate_driveway_record
+  
+  # 2. Wait for the event to be processed by Frigate
+  - delay: "00:00:05"
+
+  # 3. Send the notification with the live clip
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "🚨 INTRUDER DETECTED"
+      message: "Human presence confirmed in car. Reviewing footage..."
+      data:
+        # This uses the Frigate API to pull the most recent event clip
+        url: "/api/frigate/notifications/{{ trigger.entity_id }}/clip.mp4"
+        clickAction: "/lovelace-security/car-details" # Adjust to your dashboard path
+        attachment:
+          url: "/api/frigate/notifications/{{ trigger.entity_id }}/thumbnail.jpg"
+          content-type: jpeg
+          hide-thumbnail: false
+        push:
+          category: "camera" # Enables the live view expansion on iOS/Android
+        entity_id: camera.driveway
+        actions:
+          - action: DISARM_CAR_ALARM
+            title: "False Alarm (Disarm)"
+          - action: TRIGGER_SIREN
+            title: "Panic (Sound Siren)"
+
+  # 4. Optional: Keep recording for 2 minutes after the trigger
+  - delay: "00:02:00"
+  - service: switch.turn_off
+    target:
+      entity_id: switch.frigate_driveway_record
